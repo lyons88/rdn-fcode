@@ -99,6 +99,6 @@ result) so the supported list can be confirmed.
 
 ## License
 
-MIT (see `LICENSE`), with the original MIT notices of the Linux radeon code
+MIT (see `LICENSE`). `NOTICE` lists the RadeonNI and Linux radeon code (MIT)
 this is ported from. `tools/openbios-juniper.patch` is GPL v2, as a change to
 OpenBIOS. No VBIOS images are included.

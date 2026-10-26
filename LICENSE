@@ -1,13 +1,6 @@
 MIT License
 
 Copyright (c) 2026 James Lyons
-Portions copyright (c) 2026 kouta-kun and Claude (RadeonNI-OSX), from which
-the PLL, mode-setting and DDC code is ported.
-Portions copyright 2008 Advanced Micro Devices, Inc. (Linux radeon driver):
-src/atom.fs is a Forth port of drivers/gpu/drm/radeon/atom.c (author
-Stanislaw Skowronek), and src/consts.fs is generated from AMD's atombios.h,
-evergreen_reg.h and evergreend.h. Files copied from Linux under reference/ and
-test/ref/ keep their original notices.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,11 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
--------------------------------------------------------------------------------
-Exception: tools/openbios-juniper.patch modifies OpenBIOS and is licensed
-under the GNU General Public License, version 2, like OpenBIOS itself
-(https://github.com/openbios/openbios).
-
-Not included: card VBIOS images. They belong to the card vendors; dump your
-own (see README.md).
