@@ -1,0 +1,133 @@
+--- a/drivers/pci_database.c	2026-10-07 14:43:38
++++ b/drivers/pci_database.c	2026-10-23 12:28:11
+@@ -290,10 +290,50 @@
+     {
+         PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_RADEON_NH,
+         NULL, "ATY",      "ATY Radeon", "VGA\0",
++        0, 0, 0,
++        NULL, NULL,
++    },
++    {
++        /* Radeon HD 5770 (Juniper, Evergreen). Named pci1002,68b8, as Apple's firmware names
++         * a card whose FCode does not; no model or compatible that Mac OS X
++         * drivers for other ATI cards could match. (A NULL name would
++         * leave the class's "VGA controller".) */
++        PCI_VENDOR_ID_ATI, 0x68b8,
++        NULL, "pci1002,68b8", NULL, NULL,
++        0, 0, 0,
++        NULL, NULL,
++    },
++    {
++        /* Radeon HD 6770 (Juniper, Evergreen). Named pci1002,68ba, as Apple's firmware names
++         * a card whose FCode does not; no model or compatible that Mac OS X
++         * drivers for other ATI cards could match. (A NULL name would
++         * leave the class's "VGA controller".) */
++        PCI_VENDOR_ID_ATI, 0x68ba,
++        NULL, "pci1002,68ba", NULL, NULL,
++        0, 0, 0,
++        NULL, NULL,
++    },
++    {
++        /* Radeon HD 5750 (Juniper, Evergreen). Named pci1002,68be, as Apple's firmware names
++         * a card whose FCode does not; no model or compatible that Mac OS X
++         * drivers for other ATI cards could match. (A NULL name would
++         * leave the class's "VGA controller".) */
++        PCI_VENDOR_ID_ATI, 0x68be,
++        NULL, "pci1002,68be", NULL, NULL,
+         0, 0, 0,
+         NULL, NULL,
+     },
+     {
++        /* Radeon HD 6750 (Juniper, Evergreen). Named pci1002,68bf, as Apple's firmware names
++         * a card whose FCode does not; no model or compatible that Mac OS X
++         * drivers for other ATI cards could match. (A NULL name would
++         * leave the class's "VGA controller".) */
++        PCI_VENDOR_ID_ATI, 0x68bf,
++        NULL, "pci1002,68bf", NULL, NULL,
++        0, 0, 0,
++        NULL, NULL,
++    },
++    {
+         PCI_VENDOR_ID_QEMU, PCI_DEVICE_ID_QEMU_VGA,
+         NULL, "QEMU,VGA", "QEMU VGA",    "VGA\0",
+         0, 0, 0,
+--- a/drivers/pci.c	2026-10-15 14:27:47
++++ b/drivers/pci.c	2026-10-23 13:48:39
+@@ -1050,6 +1050,20 @@
+ 
+ 		props[ncells++] = 0x00000000;
+ 		props[ncells++] = config->sizes[i];
++	}
++	/*
++	 * The expansion ROM too, at register 0x30, as Apple's Open Firmware
++	 * lists it: Mac OS X sets the BARs up from this property, and clears
++	 * the ROM BAR of a card whose ROM is missing here, so a driver that
++	 * reads the card's ROM (its VBIOS) finds no address. The ROM is
++	 * configured in slot num_bars (6 for a device).
++	 */
++	if (num_bars == 6 && config->sizes[6]) {
++		ncells += pci_encode_phys_addr(props + ncells, 0, MEMORY_SPACE_32,
++				     config->dev, PCI_ROM_ADDRESS,
++				     config->assigned[6] & ~0x7ff);
++		props[ncells++] = 0x00000000;
++		props[ncells++] = config->sizes[6];
+ 	}
+ 	if (ncells)
+ 		set_property(dev, "assigned-addresses", (char *)props,
+@@ -1236,30 +1250,34 @@
+ static const unsigned char *find_fcode_rom(unsigned long rom, uint32_t rom_size)
+ {
+         const unsigned char *p = (const unsigned char *)rom;
+-        uint32_t pcir_off, ds_len;
++        uint32_t off = 0, pcir_off, ds_len, len;
+ 
+-        if (rom_size < 0x1A || p[0] != 0x55 || p[1] != 0xAA) {
+-                return NULL;
+-        }
+-
+-        pcir_off = p[0x18] | (p[0x19] << 8);
+-        if (pcir_off + 0x18 > rom_size ||
+-            p[pcir_off] != 'P' || p[pcir_off + 1] != 'C' ||
+-            p[pcir_off + 2] != 'I' || p[pcir_off + 3] != 'R') {
+-                return NULL;
+-        }
+-
+-        if (p[pcir_off + 0x14] != 0x01) {
+-                /* Not an Open Firmware image -- x86 VBIOS, EFI, etc. */
+-                return NULL;
+-        }
+-
+-        ds_len = p[pcir_off + 0x0A] | (p[pcir_off + 0x0B] << 8);
+-        if (pcir_off + ds_len > rom_size) {
+-                return NULL;
++        /*
++         * Walk the whole image chain: a card can carry its x86 image first
++         * and the Open Firmware one after it (PCI Firmware Specification,
++         * the indicator byte's bit 7 marks the last image).
++         */
++        while (off + 0x1A <= rom_size && p[off] == 0x55 && p[off + 1] == 0xAA) {
++                pcir_off = off + (p[off + 0x18] | (p[off + 0x19] << 8));
++                if (pcir_off + 0x18 > rom_size ||
++                    p[pcir_off] != 'P' || p[pcir_off + 1] != 'C' ||
++                    p[pcir_off + 2] != 'I' || p[pcir_off + 3] != 'R') {
++                        return NULL;
++                }
++                if (p[pcir_off + 0x14] == 0x01) {
++                        ds_len = p[pcir_off + 0x0A] | (p[pcir_off + 0x0B] << 8);
++                        if (pcir_off + ds_len > rom_size) {
++                                return NULL;
++                        }
++                        return p + pcir_off + ds_len;
++                }
++                len = (p[pcir_off + 0x10] | (p[pcir_off + 0x11] << 8)) * 512;
++                if ((p[pcir_off + 0x15] & 0x80) || len == 0) {
++                        return NULL;            /* the last image */
++                }
++                off += len;
+         }
+-
+-        return p + pcir_off + ds_len;
++        return NULL;
+ }
+ 
+ #endif

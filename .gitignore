@@ -1,0 +1,4 @@
+.DS_Store
+build/
+*.rom
+!/reference/vbios/README.txt
